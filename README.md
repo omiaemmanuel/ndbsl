@@ -54,7 +54,7 @@ If you have Git installed on the NAS or transfer via `git clone`:
 
 ```bash
 cd /volume1/docker/ndbsl
-git clone https://github.com/YOUR_ORG/ndbsl.git .
+git clone https://github.com/omiaemmanuel/ndbsl.git .
 ```
 
 ### Option B: SCP / File Station
@@ -62,7 +62,7 @@ git clone https://github.com/YOUR_ORG/ndbsl.git .
 From your development machine:
 
 ```bash
-scp -r /path/to/claude_rebuild/* admin@nas_ip:/volume1/docker/ndbsl/
+scp -r /path/to/Cloned-repo/* admin@nas_ip:/volume1/docker/ndbsl/
 ```
 
 Or use **Synology File Station** to upload the project zip and extract it.
@@ -91,7 +91,7 @@ JWT_REFRESH_SECRET=replace_with_another_random_64_char_string
 MINIO_USER=minioadmin
 MINIO_PASS=choose_a_minio_password
 
-# URLs (replace with your actual subdomain)
+# URLs (replace with our actual subdomain from CNU)
 FRONTEND_URL=https://ndbsl.university.ac.kr
 VITE_API_URL=https://ndbsl.university.ac.kr
 
