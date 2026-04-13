@@ -1,0 +1,430 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+model AppUser {
+  id           String    @id @default(cuid())
+  username     String    @unique
+  passwordHash String    @map("password_hash")
+  fullName     String    @map("full_name")
+  email        String?   @unique
+  phone        String?
+  employeeId   String?   @map("employee_id")
+  department   String?
+  role         String    // super_admin | admin | professor | member
+  active       Boolean   @default(true)
+  createdAt    DateTime  @default(now()) @map("created_at")
+  updatedAt    DateTime  @updatedAt @map("updated_at")
+  lastLoginAt  DateTime? @map("last_login_at")
+
+  bookings             Booking[]
+  procurementRequests  ProcurementRequest[] @relation("RequesterRequests")
+  reviewedRequests     ProcurementRequest[] @relation("ReviewerRequests")
+  professorQueries     ProfessorQuery[]     @relation("ProfessorQueries")
+  queryMessages        QueryMessage[]
+  consumableRequests   ConsumableRequest[]
+  faultReports         FaultReport[]
+  faultMessages        FaultMessage[]
+  researchProjects     ResearchProject[]
+  researchMemberships  ResearchProjectMember[]
+  announcements        Announcement[]
+  auditLogs            AuditLog[]
+  equipmentCreated     Equipment[]
+  pushSubscriptions    PushSubscription[]
+  weeklyReports        WeeklyReport[]
+  reportComments       ReportComment[]
+  meetingRequests      MeetingRequest[]
+
+  @@map("app_users")
+}
+
+model Room {
+  id          String    @id @default(cuid())
+  name        String
+  parentId    String?   @map("parent_id")
+  description String?
+  ordering    Int       @default(0)
+  createdAt   DateTime  @default(now()) @map("created_at")
+
+  parent     Room?      @relation("RoomHierarchy", fields: [parentId], references: [id])
+  children   Room[]     @relation("RoomHierarchy")
+  equipment  Equipment[]
+
+  @@map("rooms")
+}
+
+model Equipment {
+  id                 String   @id @default(cuid())
+  name               String
+  category           String?
+  serialNumber       String?  @map("serial_number")
+  model              String?
+  description        String?
+  specs              String?  // JSON stored as text
+  roomId             String?  @map("room_id")
+  status             String   @default("available") // available|in_use|under_maintenance|decommissioned
+  manualUrl          String?  @map("manual_url")
+  imageUrl           String?  @map("image_url")
+  requiresApproval   Boolean  @default(false) @map("requires_approval")
+  maxDurationHours   Int      @default(24) @map("max_duration_hours")
+  advanceLimitDays   Int      @default(30) @map("advance_limit_days")
+  minNoticeHours     Int      @default(1) @map("min_notice_hours")
+  createdBy          String?  @map("created_by")
+  createdAt          DateTime @default(now()) @map("created_at")
+  updatedAt          DateTime @updatedAt @map("updated_at")
+
+  bookingDisabled Boolean  @default(false) @map("booking_disabled")
+
+  room         Room?         @relation(fields: [roomId], references: [id])
+  creator      AppUser?      @relation(fields: [createdBy], references: [id])
+  bookings     Booking[]
+  faultReports FaultReport[]
+
+  @@map("equipment")
+}
+
+model Booking {
+  id            String   @id @default(cuid())
+  equipmentId   String   @map("equipment_id")
+  userId        String   @map("user_id")
+  purpose       String
+  startDatetime DateTime @map("start_datetime")
+  endDatetime   DateTime @map("end_datetime")
+  status        String   @default("confirmed") // pending|confirmed|cancelled|completed
+  adminNotes    String?  @map("admin_notes")
+  isArchived    Boolean  @default(false) @map("is_archived")
+  createdAt     DateTime @default(now()) @map("created_at")
+  updatedAt     DateTime @updatedAt @map("updated_at")
+
+  equipment Equipment @relation(fields: [equipmentId], references: [id])
+  user      AppUser   @relation(fields: [userId], references: [id])
+
+  @@map("bookings")
+}
+
+model ProcurementRequest {
+  id                   String    @id @default(cuid())
+  title                String
+  requesterId          String    @map("requester_id")
+  assistantName        String?   @map("assistant_name")
+  justification        String
+  priority             String    @default("normal") // low|normal|high|urgent
+  requiredByDate       DateTime? @map("required_by_date")
+  deliveryLocation     String?   @map("delivery_location")
+  professorApproval    Boolean   @default(false) @map("professor_approval")
+  totalAmount          Int       @default(0) @map("total_amount")
+  status               String    @default("pending") // pending|approved|queried|declined|ordered|delivered|cancelled
+  professorNotes       String?   @map("professor_notes")
+  adminNotes           String?   @map("admin_notes")
+  reviewedBy           String?   @map("reviewed_by")
+  reviewedAt           DateTime? @map("reviewed_at")
+  isArchived           Boolean   @default(false) @map("is_archived")
+  hasUnreadMemberReply Boolean   @default(false) @map("has_unread_member_reply")
+  hasUnreadProfMessage Boolean   @default(false) @map("has_unread_prof_message")
+  createdAt            DateTime  @default(now()) @map("created_at")
+  updatedAt            DateTime  @updatedAt @map("updated_at")
+
+  requester  AppUser              @relation("RequesterRequests", fields: [requesterId], references: [id])
+  reviewer   AppUser?             @relation("ReviewerRequests", fields: [reviewedBy], references: [id])
+  items      ProcurementItem[]
+  queries    ProfessorQuery[]
+
+  @@map("procurement_requests")
+}
+
+model ProcurementItem {
+  id             String   @id @default(cuid())
+  requestId      String   @map("request_id")
+  itemName       String   @map("item_name")
+  quantity       Int
+  unitCost       Int      @map("unit_cost")
+  specifications String?
+  link           String?
+  createdAt      DateTime @default(now()) @map("created_at")
+
+  request ProcurementRequest @relation(fields: [requestId], references: [id], onDelete: Cascade)
+
+  @@map("procurement_items")
+}
+
+model ProfessorQuery {
+  id          String    @id @default(cuid())
+  requestId   String    @map("request_id")
+  professorId String    @map("professor_id")
+  message     String
+  response    String?
+  status      String    @default("open") // open|responded|closed
+  queryTarget String    @default("member") @map("query_target") // member|admin|both
+  isArchived  Boolean   @default(false) @map("is_archived")
+  createdAt   DateTime  @default(now()) @map("created_at")
+  respondedAt DateTime? @map("responded_at")
+
+  request   ProcurementRequest @relation(fields: [requestId], references: [id])
+  professor AppUser            @relation("ProfessorQueries", fields: [professorId], references: [id])
+  messages  QueryMessage[]
+
+  @@map("professor_queries")
+}
+
+model QueryMessage {
+  id        String   @id @default(cuid())
+  queryId   String   @map("query_id")
+  senderId  String   @map("sender_id")
+  body      String
+  createdAt DateTime @default(now()) @map("created_at")
+
+  query  ProfessorQuery @relation(fields: [queryId], references: [id], onDelete: Cascade)
+  sender AppUser        @relation(fields: [senderId], references: [id])
+
+  @@map("query_messages")
+}
+
+model Consumable {
+  id               String   @id @default(cuid())
+  name             String
+  category         String?
+  currentStock     Int      @default(0) @map("current_stock")
+  unit             String?
+  reorderThreshold Int      @default(5) @map("reorder_threshold")
+  location         String?
+  costPerUnit      Int      @default(0) @map("cost_per_unit")
+  isActive         Boolean  @default(true) @map("is_active")
+  createdAt        DateTime @default(now()) @map("created_at")
+  updatedAt        DateTime @updatedAt @map("updated_at")
+
+  requests ConsumableRequest[]
+
+  @@map("consumables")
+}
+
+model ConsumableRequest {
+  id           String   @id @default(cuid())
+  requesterId  String   @map("requester_id")
+  requestType  String   @map("request_type") // restock|new_item
+  consumableId String?  @map("consumable_id")
+  itemName     String?  @map("item_name")
+  category     String?
+  unit         String?
+  quantity     Int
+  purpose      String?
+  status       String   @default("pending") // pending|approved|issued|rejected
+  adminNotes   String?  @map("admin_notes")
+  isArchived   Boolean  @default(false) @map("is_archived")
+  createdAt    DateTime @default(now()) @map("created_at")
+  updatedAt    DateTime @updatedAt @map("updated_at")
+
+  requester  AppUser     @relation(fields: [requesterId], references: [id])
+  consumable Consumable? @relation(fields: [consumableId], references: [id])
+
+  @@map("consumable_requests")
+}
+
+model FaultReport {
+  id              String    @id @default(cuid())
+  equipmentId     String    @map("equipment_id")
+  reporterId      String    @map("reporter_id")
+  severity        String    // low|medium|high|critical
+  description     String
+  status          String    @default("pending") // pending|in_progress|resolved
+  resolutionNotes String?   @map("resolution_notes")
+  resolvedAt      DateTime? @map("resolved_at")
+  isArchived      Boolean   @default(false) @map("is_archived")
+  reporterUsable  Boolean   @default(true) @map("reporter_usable")  // reporter's assessment
+  adminUsable     Boolean?  @map("admin_usable")                    // admin's final decision (null = not yet set)
+  createdAt       DateTime  @default(now()) @map("created_at")
+  updatedAt       DateTime  @updatedAt @map("updated_at")
+
+  equipment Equipment     @relation(fields: [equipmentId], references: [id])
+  reporter  AppUser       @relation(fields: [reporterId], references: [id])
+  messages  FaultMessage[]
+
+  @@map("fault_reports")
+}
+
+model FaultMessage {
+  id        String   @id @default(cuid())
+  faultId   String   @map("fault_id")
+  senderId  String   @map("sender_id")
+  body      String
+  createdAt DateTime @default(now()) @map("created_at")
+
+  fault  FaultReport @relation(fields: [faultId], references: [id], onDelete: Cascade)
+  sender AppUser     @relation(fields: [senderId], references: [id])
+
+  @@map("fault_messages")
+}
+
+model ResearchProject {
+  id             String   @id @default(cuid())
+  title          String
+  researchType   String   @map("research_type") // current|completed
+  summary        String?
+  description    String?  // longer rich description shown in popup
+  leadResearcher String?  @map("lead_researcher")
+  year           Int?
+  imageUrl       String?  @map("image_url")
+  externalLink   String?  @map("external_link")
+  displayOrder   Int      @default(0) @map("display_order")
+  status         String   @default("active") // active|archived
+  createdBy      String?  @map("created_by")
+  createdAt      DateTime @default(now()) @map("created_at")
+  updatedAt      DateTime @updatedAt @map("updated_at")
+
+  creator AppUser?               @relation(fields: [createdBy], references: [id])
+  members ResearchProjectMember[]
+
+  @@map("research_projects")
+}
+
+model ResearchProjectMember {
+  id        String   @id @default(cuid())
+  projectId String   @map("project_id")
+  userId    String   @map("user_id")
+  createdAt DateTime @default(now()) @map("created_at")
+
+  project ResearchProject @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  user    AppUser         @relation(fields: [userId], references: [id])
+
+  @@unique([projectId, userId])
+  @@map("research_project_members")
+}
+
+model PushSubscription {
+  id        String   @id @default(cuid())
+  userId    String   @map("user_id")
+  endpoint  String   @unique
+  p256dh    String
+  auth      String
+  createdAt DateTime @default(now()) @map("created_at")
+
+  user AppUser @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("push_subscriptions")
+}
+
+model Announcement {
+  id           String    @id @default(cuid())
+  title        String
+  content      String
+  visibleFrom  DateTime  @default(now()) @map("visible_from")
+  visibleUntil DateTime? @map("visible_until")
+  displayOrder Int       @default(0) @map("display_order")
+  visible      Boolean   @default(true)
+  isArchived   Boolean   @default(false) @map("is_archived")
+  createdBy    String?   @map("created_by")
+  createdAt    DateTime  @default(now()) @map("created_at")
+  updatedAt    DateTime  @updatedAt @map("updated_at")
+
+  creator AppUser?           @relation(fields: [createdBy], references: [id])
+  files   AnnouncementFile[]
+
+  @@map("announcements")
+}
+
+model AnnouncementFile {
+  id             String   @id @default(cuid())
+  announcementId String   @map("announcement_id")
+  filename       String?
+  fileUrl        String?  @map("file_url")
+  fileSize       Int?     @map("file_size")
+  createdAt      DateTime @default(now()) @map("created_at")
+
+  announcement Announcement @relation(fields: [announcementId], references: [id], onDelete: Cascade)
+
+  @@map("announcement_files")
+}
+
+model AuditLog {
+  id           String   @id @default(cuid())
+  userId       String?  @map("user_id")
+  action       String
+  resourceType String?  @map("resource_type")
+  resourceId   String?  @map("resource_id")
+  dataBefore   String?  @map("data_before")  // JSON as text
+  dataAfter    String?  @map("data_after")   // JSON as text
+  note         String?
+  ipAddress    String?  @map("ip_address")
+  createdAt    DateTime @default(now()) @map("created_at")
+
+  user AppUser? @relation(fields: [userId], references: [id])
+
+  @@map("audit_logs")
+}
+
+// ─── Research Pulse ──────────────────────────────────────────────────────────
+
+model WeeklyReport {
+  id              String   @id @default(cuid())
+  studentId       String   @map("student_id")
+  weekStart       DateTime @map("week_start")        // Monday 00:00 UTC of the report week
+  accomplishments String
+  challenges      String
+  nextSteps       String   @map("next_steps")
+  readingList     String?  @map("reading_list")
+  imageUrl        String?  @map("image_url")
+  isPublic        Boolean  @default(false) @map("is_public")
+  requestMeeting  Boolean  @default(false) @map("request_meeting")
+  status          String   @default("pending")       // pending|reviewed|discussion
+  isLate          Boolean  @default(false) @map("is_late")
+  createdAt       DateTime @default(now()) @map("created_at")
+  updatedAt       DateTime @updatedAt @map("updated_at")
+
+  student  AppUser         @relation(fields: [studentId], references: [id])
+  comments ReportComment[]
+  meetings MeetingRequest[]
+  images   ReportImage[]
+
+  @@unique([studentId, weekStart])
+  @@map("weekly_reports")
+}
+
+model ReportImage {
+  id           String   @id @default(cuid())
+  reportId     String   @map("report_id")
+  url          String
+  caption      String?
+  displayOrder Int      @default(0) @map("display_order")
+  createdAt    DateTime @default(now()) @map("created_at")
+
+  report WeeklyReport @relation(fields: [reportId], references: [id], onDelete: Cascade)
+
+  @@map("report_images")
+}
+
+model ReportComment {
+  id                String   @id @default(cuid())
+  reportId          String   @map("report_id")
+  authorId          String   @map("author_id")
+  text              String
+  parentCommentId   String?  @map("parent_comment_id")
+  selectionMetadata String?  @map("selection_metadata") // JSON: { quote, field }
+  createdAt         DateTime @default(now()) @map("created_at")
+  updatedAt         DateTime @updatedAt @map("updated_at")
+
+  report        WeeklyReport    @relation(fields: [reportId], references: [id], onDelete: Cascade)
+  author        AppUser         @relation(fields: [authorId], references: [id])
+  parentComment ReportComment?  @relation("CommentThread", fields: [parentCommentId], references: [id])
+  replies       ReportComment[] @relation("CommentThread")
+
+  @@map("report_comments")
+}
+
+model MeetingRequest {
+  id          String   @id @default(cuid())
+  reportId    String   @map("report_id")
+  requesterId String   @map("requester_id")
+  status      String   @default("requested") // requested|scheduled|completed
+  notes       String?
+  createdAt   DateTime @default(now()) @map("created_at")
+  updatedAt   DateTime @updatedAt @map("updated_at")
+
+  report    WeeklyReport @relation(fields: [reportId], references: [id])
+  requester AppUser      @relation(fields: [requesterId], references: [id])
+
+  @@map("meeting_requests")
+}
