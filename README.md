@@ -92,8 +92,8 @@ MINIO_USER=minioadmin
 MINIO_PASS=choose_a_minio_password
 
 # URLs (replace with our actual subdomain from CNU)
-FRONTEND_URL=https://ndbsl.university.ac.kr
-VITE_API_URL=https://ndbsl.university.ac.kr
+FRONTEND_URL=https://sensorspace.cnu.ac.kr
+VITE_API_URL=https://sensorspace.cnu.ac.kr
 
 # App
 NODE_ENV=production
